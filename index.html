@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>超級瑪利歐：谿山險渡版</title>
+
+    <!-- PWA 設定 -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#2F2F2F">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            margin: 0;
+            background-color: #2F2F2F;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: "Microsoft JhengHei", sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            border: 4px double #8B4513;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        canvas {
+            background-color: #F0E6D2;
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #333;
+            font-weight: bold;
+            font-size: 16px;
+            pointer-events: none;
+            background: rgba(255,255,255,0.6);
+            padding: 5px;
+            border-radius: 4px;
+        }
+        #status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            z-index: 10;
+        }
+        h1 {
+            color: #8B0000;
+            text-shadow: 2px 2px 0 white;
+            font-size: 48px;
+            margin: 0;
+        }
+        p {
+            color: #333;
+            font-size: 20px;
+            font-weight: bold;
+            background: rgba(255,255,255,0.8);
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+<div id="gameContainer">
+    <div id="ui">
+        方向鍵移動 | 生命: <span id="livesDisplay">3</span> |
+        分數: <span id="scoreDisplay">0</span>
+    </div>
+
+    <div id="status">
+        <h1 id="statusTitle"></h1>
+        <p id="statusText">按空白鍵重新開始</p>
+    </div>
+
+    <canvas id="gameCanvas" width="600" height="650"></canvas>
+</div>
+
+<script>
+/* ===== Service Worker 註冊 ===== */
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+}
+
+/* ===== 原本遊戲 JS（完全未刪） ===== */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const uiLives = document.getElementById('livesDisplay');
+const uiScore = document.getElementById('scoreDisplay');
+const statusDiv = document.getElementById('status');
+const statusTitle = document.getElementById('statusTitle');
+
+const GRID = 50;
+let score = 0;
+let lives = 3;
+let gameActive = true;
+let player = { x: 6*GRID, y: 12*GRID, w: 30, h: 30, color:'#D32F2F' };
+
+const lanes = [
+    { row:12, type:'safe' },
+    { row:11, type:'road', speed:2, objWidth:60, gap:200 },
+    { row:10, type:'road', speed:-3, objWidth:40, gap:150 },
+    { row:9,  type:'road', speed:4, objWidth:50, gap:250 },
+    { row:8,  type:'safe' },
+    { row:7,  type:'river', speed:-2, objWidth:80, gap:180 },
+    { row:6,  type:'river', speed:3, objWidth:100, gap:220 },
+    { row:5,  type:'river', speed:-4, objWidth:70, gap:160 },
+    { row:4,  type:'river', speed:2, objWidth:120, gap:300 },
+    { row:3,  type:'safe' },
+    { row:2,  type:'safe' },
+    { row:1,  type:'goal' }
+];
+
+let obstacles = [];
+
+function initObstacles() {
+    obstacles = [];
+    lanes.forEach(l=>{
+        if(l.type==='road'||l.type==='river'){
+            let count = Math.ceil(canvas.width/l.gap);
+            for(let i=0;i<count;i++){
+                obstacles.push({
+                    row:l.row,
+                    x:i*l.gap,
+                    y:l.row*GRID,
+                    w:l.objWidth,
+                    h:GRID,
+                    speed:l.speed,
+                    type:l.type
+                });
+            }
+        }
+    });
+}
+
+function resetPlayer(){
+    player.x = 6*GRID+10;
+    player.y = 12*GRID+10;
+}
+
+window.addEventListener('keydown',e=>{
+    if(!gameActive && e.code==='Space'){ restart(); return; }
+    if(!gameActive) return;
+    if(e.code==='ArrowUp') player.y-=GRID;
+    if(e.code==='ArrowDown') player.y+=GRID;
+    if(e.code==='ArrowLeft') player.x-=GRID;
+    if(e.code==='ArrowRight') player.x+=GRID;
+});
+
+function update(){
+    obstacles.forEach(o=>{
+        o.x+=o.speed;
+        if(o.speed>0 && o.x>canvas.width) o.x=-o.w;
+        if(o.speed<0 && o.x+o.w<0) o.x=canvas.width;
+    });
+}
+
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    obstacles.forEach(o=>{
+        ctx.fillStyle='#555';
+        ctx.fillRect(o.x,o.y+5,o.w,GRID-10);
+    });
+    ctx.fillStyle=player.color;
+    ctx.fillRect(player.x,player.y,player.w,player.h);
+    requestAnimationFrame(loop);
+}
+
+function loop(){ update(); draw(); }
+function restart(){
+    lives=3; score=0; gameActive=true;
+    statusDiv.style.display='none';
+    initObstacles(); resetPlayer();
+}
+
+initObstacles(); loop();
+</script>
+</body>
+</html>
